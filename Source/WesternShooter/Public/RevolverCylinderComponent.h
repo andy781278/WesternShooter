@@ -37,6 +37,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
 	float ChamberAdvanceTime = 0.3f;
 
+	UFUNCTION(BlueprintPure, Category = "Cylinder")
+	const TArray<EBulletType>& GetChambers() const { return Chambers; }
+
+	UFUNCTION(BlueprintPure, Category = "Cylinder")
+	int32 GetCurrentIndex() const { return CurrentIndex; }
+
+	UFUNCTION(BlueprintPure, Category = "Cylinder")
+	float GetCurrentChamberCockTime() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void BeginSpin();
+
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void EndSpin(int32 NewIndex);
+
+	UFUNCTION(BlueprintPure, Category = "Cylinder")
+	bool IsSpinning() const { return bIsSpinning; }
+
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
 	void Reload();
 
@@ -74,10 +92,6 @@ public:
 	//cycles back
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
 	void CycleBack();
-
-	// Jumps to a random chamber.
-	UFUNCTION(BlueprintCallable, Category = "Cylinder")
-	void Spin();
 
 	// Empties the current chamber. Does not advance.
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
@@ -121,9 +135,6 @@ protected:
 	void ServerCycleBack();
 
 	UFUNCTION(Server, Reliable)
-	void ServerSpin();
-
-	UFUNCTION(Server, Reliable)
 	void ServerDiscard();
 
 	UPROPERTY(Replicated)
@@ -134,6 +145,15 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerCancelReload();
+
+	UPROPERTY(Replicated)
+	bool bIsSpinning = false;
+
+	UFUNCTION(Server, Reliable)
+	void ServerBeginSpin();
+
+	UFUNCTION(Server, Reliable)
+	void ServerEndSpin(int32 NewIndex);
 
 private:
 	// Moves CurrentIndex forward by one and wraps from the last chamber back to the first.

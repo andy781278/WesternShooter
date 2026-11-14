@@ -27,6 +27,7 @@ void URevolverCylinderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProp
 	DOREPLIFETIME_CONDITION(URevolverCylinderComponent, CurrentIndex, COND_OwnerOnly);
 	DOREPLIFETIME(URevolverCylinderComponent, bIsReloading);
 	DOREPLIFETIME(URevolverCylinderComponent, bIsCocking);
+	DOREPLIFETIME(URevolverCylinderComponent, bIsSpinning);
 }
 
 // Called when the game starts
@@ -51,11 +52,6 @@ void URevolverCylinderComponent::Cycle()
 void URevolverCylinderComponent::CycleBack()
 {
 	ServerCycleBack();
-}
-
-void URevolverCylinderComponent::Spin()
-{
-	ServerSpin();
 }
 
 void URevolverCylinderComponent::Discard()
@@ -85,7 +81,7 @@ void URevolverCylinderComponent::ReleaseTrigger()
 
 void URevolverCylinderComponent::ServerStartCock_Implementation()
 {
-	if (bIsCocking || !Chambers.IsValidIndex(CurrentIndex))
+	if (bIsCocking || bIsSpinning || !Chambers.IsValidIndex(CurrentIndex))
 	{
 		return;
 	}
@@ -211,7 +207,7 @@ float URevolverCylinderComponent::GetCockTime(EBulletType BulletType) const
 
 void URevolverCylinderComponent::ServerCycle_Implementation()
 {
-	if (bIsReloading || bIsCocking)
+	if (bIsReloading || bIsCocking || bIsSpinning)
 	{
 		return;
 	}
@@ -221,7 +217,7 @@ void URevolverCylinderComponent::ServerCycle_Implementation()
 void URevolverCylinderComponent::ServerCycleBack_Implementation()
 {
 	// Blocked during a reload, the same as Cycle, Spin, and Discard.
-	if (bIsReloading || bIsCocking)
+	if (bIsReloading || bIsCocking || bIsSpinning)
 	{
 		return;
 	}
@@ -237,24 +233,9 @@ void URevolverCylinderComponent::ServerCycleBack_Implementation()
 	CurrentIndex = (CurrentIndex - 1 + Chambers.Num()) % Chambers.Num();
 }
 
-void URevolverCylinderComponent::ServerSpin_Implementation()
-{
-	if (bIsReloading || bIsCocking)
-	{
-		return;
-	}
-	if (Chambers.Num() == 0)
-	{
-		return;
-	}
-
-	// NEW. The server picks the random number, so a client cannot choose the result.
-	CurrentIndex = FMath::RandRange(0, Chambers.Num() - 1);
-}
-
 void URevolverCylinderComponent::ServerDiscard_Implementation()
 {
-	if (bIsReloading || bIsCocking)
+	if (bIsReloading || bIsCocking || bIsSpinning)
 	{
 		return;
 	}
@@ -269,7 +250,7 @@ void URevolverCylinderComponent::ServerDiscard_Implementation()
 void URevolverCylinderComponent::ServerReload_Implementation()
 {
 	// Ignore a request while a reload is already running, or if there are no chambers.
-	if (bIsReloading || bIsCocking || Chambers.Num() == 0)
+	if (bIsReloading || bIsCocking || bIsSpinning  || Chambers.Num() == 0)
 	{
 		return;
 	}
@@ -360,6 +341,56 @@ void URevolverCylinderComponent::Advance()
 	CurrentIndex = (CurrentIndex + 1) % Chambers.Num();
 }
 
+// NEW.
+float URevolverCylinderComponent::GetCurrentChamberCockTime() const
+{
+	if (!Chambers.IsValidIndex(CurrentIndex))
+	{
+		return DefaultCockTime;
+	}
+
+	return GetCockTime(Chambers[CurrentIndex]);
+}
+
+void URevolverCylinderComponent::BeginSpin()
+{
+	ServerBeginSpin();
+}
+
+void URevolverCylinderComponent::EndSpin(int32 NewIndex)
+{
+	ServerEndSpin(NewIndex);
+}
+
+void URevolverCylinderComponent::ServerBeginSpin_Implementation()
+{
+	// A spin cannot start during a reload, while cocking, or while one is already running.
+	if (bIsReloading || bIsCocking || bIsSpinning)
+	{
+		return;
+	}
+
+	bIsSpinning = true;
+}
+
+void URevolverCylinderComponent::ServerEndSpin_Implementation(int32 NewIndex)
+{
+	// Ignored if the server never accepted the start. The client's wheel then returns to the server's index.
+	if (!bIsSpinning)
+	{
+		return;
+	}
+
+	bIsSpinning = false;
+
+	// The value comes from a client, so it is checked before use.
+	// An out-of-range index from a modified client would otherwise be stored and used.
+	if (Chambers.IsValidIndex(NewIndex))
+	{
+		CurrentIndex = NewIndex;
+	}
+}
+
 FString URevolverCylinderComponent::GetDebugString() const
 {
 	FString Result;
@@ -396,6 +427,11 @@ FString URevolverCylinderComponent::GetDebugString() const
 	if (bIsCocking)
 	{
 		Result += TEXT(" COCKING");
+	}
+
+	if (bIsSpinning)
+	{
+		Result += TEXT(" SPINNING");
 	}
 
 	return Result;

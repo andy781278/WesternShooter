@@ -30,6 +30,21 @@ public:
 	static constexpr int32 ChamberCount = 6;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	float ChamberLoadTime = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	float ChamberAdvanceTime = 0.3f;
+
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void Reload();
+
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void CancelReload();
+
+	UFUNCTION(BlueprintPure, Category = "Cylinder")
+	bool IsReloading() const { return bIsReloading; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
 	TArray<EBulletType> DefaultLoadout;
 
 	// Uses the current chamber, empties it, and advances to the next chamber.
@@ -40,6 +55,10 @@ public:
 	// Advances to the next chamber without firing. The skipped bullet stays in its chamber.
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
 	void Cycle();
+
+	//cycles back
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void CycleBack();
 
 	// Jumps to a random chamber.
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
@@ -69,12 +88,36 @@ protected:
 	void ServerCycle();
 
 	UFUNCTION(Server, Reliable)
+	void ServerCycleBack();
+
+	UFUNCTION(Server, Reliable)
 	void ServerSpin();
 
 	UFUNCTION(Server, Reliable)
 	void ServerDiscard();
 
+	UPROPERTY(Replicated)
+	bool bIsReloading = false;
+
+	UFUNCTION(Server, Reliable)
+	void ServerReload();
+
+	UFUNCTION(Server, Reliable)
+	void ServerCancelReload();
+
 private:
 	// Moves CurrentIndex forward by one and wraps from the last chamber back to the first.
 	void Advance();
+
+	FTimerHandle ReloadTimerHandle;
+
+	int32 ReloadChambersRemaining = 0;
+
+	void StartChamberLoad();
+
+	void FinishChamberLoad();
+
+	void AdvanceReload();
+
+	void StopReload();
 };

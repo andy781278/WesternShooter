@@ -47,10 +47,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
 	TArray<EBulletType> DefaultLoadout;
 
-	// Uses the current chamber, empties it, and advances to the next chamber.
-	// An empty chamber is a dry fire: nothing is used, and the cylinder still advances.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	TMap<EBulletType, float> CockTimes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	float DefaultCockTime = 0.01f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	float CockTimeTolerance = 0.1f;
+
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
-	void Fire();
+	void StartCock();
+
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void ReleaseTrigger();
+
+	UFUNCTION(BlueprintPure, Category = "Cylinder")
+	bool IsCocking() const { return bIsCocking; }
 
 	// Advances to the next chamber without firing. The skipped bullet stays in its chamber.
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
@@ -81,8 +94,14 @@ protected:
 	UPROPERTY(Replicated)
 	int32 CurrentIndex = 0;
 
+	UPROPERTY(Replicated)
+	bool bIsCocking = false;
+
 	UFUNCTION(Server, Reliable)
-	void ServerFire();
+	void ServerStartCock();
+
+	UFUNCTION(Server, Reliable)
+	void ServerReleaseTrigger();
 
 	UFUNCTION(Server, Reliable)
 	void ServerCycle();
@@ -108,6 +127,14 @@ protected:
 private:
 	// Moves CurrentIndex forward by one and wraps from the last chamber back to the first.
 	void Advance();
+
+	float CockStartTime = 0.0f;
+
+	float CockRequiredTime = 0.0f;
+
+	float GetCockTime(EBulletType BulletType) const;
+
+	void FireCurrentChamber();
 
 	FTimerHandle ReloadTimerHandle;
 

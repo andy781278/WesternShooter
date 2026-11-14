@@ -1,15 +1,19 @@
 #include "RevolverCylinderComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 // Sets default values for this component's properties
-URevolverCylinderComponent::URevolverCylinderComponent()
-{
+URevolverCylinderComponent::URevolverCylinderComponent() {
 	PrimaryComponentTick.bCanEverTick = false;
-
 	SetIsReplicatedByDefault(true);
-
 	DefaultLoadout.Init(EBulletType::Standard, ChamberCount);
+
+	CockTimes.Add(EBulletType::Standard, 0.3f);
+	CockTimes.Add(EBulletType::BigPush, 0.6f);
+	CockTimes.Add(EBulletType::Bomb, 1.0f);
+	CockTimes.Add(EBulletType::Recursive, 0.5f);
 }
 
 void URevolverCylinderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -18,6 +22,7 @@ void URevolverCylinderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProp
 	DOREPLIFETIME_CONDITION(URevolverCylinderComponent, Chambers, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(URevolverCylinderComponent, CurrentIndex, COND_OwnerOnly);
 	DOREPLIFETIME(URevolverCylinderComponent, bIsReloading);
+	DOREPLIFETIME(URevolverCylinderComponent, bIsCocking);
 }
 
 // Called when the game starts
@@ -32,11 +37,6 @@ void URevolverCylinderComponent::BeginPlay()
 
 		CurrentIndex = 0;
 	}
-}
-
-void URevolverCylinderComponent::Fire()
-{
-	ServerFire();
 }
 
 void URevolverCylinderComponent::Cycle()
@@ -69,7 +69,70 @@ void URevolverCylinderComponent::CancelReload()
 	ServerCancelReload();
 }
 
-void URevolverCylinderComponent::ServerFire_Implementation()
+void URevolverCylinderComponent::StartCock()
+{
+	ServerStartCock();
+}
+
+void URevolverCylinderComponent::ReleaseTrigger()
+{
+	ServerReleaseTrigger();
+}
+
+void URevolverCylinderComponent::ServerStartCock_Implementation()
+{
+	if (bIsCocking || !Chambers.IsValidIndex(CurrentIndex))
+	{
+		return;
+	}
+
+	const EBulletType BulletType = Chambers[CurrentIndex];
+
+	// shooting cancels a reload only if the active chamber holds a bullet.
+	// With cocking, the cancel happens when the hammer starts moving.
+	if (bIsReloading)
+	{
+		if (BulletType == EBulletType::Empty)
+		{
+			return;
+		}
+
+		StopReload();
+	}
+
+	bIsCocking = true;
+
+	// GetTimeSeconds returns the time since the level started, on this machine. This runs on the server.
+	CockStartTime = GetWorld()->GetTimeSeconds();
+
+	// The required time is fixed at the start, from the bullet in the chamber at that moment.
+	CockRequiredTime = GetCockTime(BulletType);
+}
+
+void URevolverCylinderComponent::ServerReleaseTrigger_Implementation()
+{
+	// A release with no cocking in progress is ignored.
+	// This happens when the press was rejected, for example during a reload on an empty chamber.
+	if (!bIsCocking)
+	{
+		return;
+	}
+
+	bIsCocking = false;
+
+	const float HeldTime = GetWorld()->GetTimeSeconds() - CockStartTime;
+
+	// Released too early: the hammer is lowered and the bullet stays in the chamber.
+	if (HeldTime + CockTimeTolerance < CockRequiredTime)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Server: %s released early (%.2f of %.2f s)"), *GetNameSafe(GetOwner()), HeldTime, CockRequiredTime);
+		return;
+	}
+
+	FireCurrentChamber();
+}
+
+void URevolverCylinderComponent::FireCurrentChamber()
 {
 	if (!Chambers.IsValidIndex(CurrentIndex))
 	{
@@ -77,16 +140,6 @@ void URevolverCylinderComponent::ServerFire_Implementation()
 	}
 
 	const EBulletType FiredType = Chambers[CurrentIndex];
-
-	if (bIsReloading)
-	{
-		if (FiredType == EBulletType::Empty)
-		{
-			return;
-		}
-
-		StopReload();
-	}
 
 	if (FiredType != EBulletType::Empty)
 	{
@@ -103,9 +156,21 @@ void URevolverCylinderComponent::ServerFire_Implementation()
 	Advance();
 }
 
+float URevolverCylinderComponent::GetCockTime(EBulletType BulletType) const
+{
+	// TMap::Find returns a pointer to the value, or nullptr if the key is not in the map.
+	// Declaring the variable inside the if condition limits it to this block.
+	if (const float* FoundTime = CockTimes.Find(BulletType))
+	{
+		return *FoundTime;
+	}
+
+	return DefaultCockTime;
+}
+
 void URevolverCylinderComponent::ServerCycle_Implementation()
 {
-	if (bIsReloading)
+	if (bIsReloading || bIsCocking)
 	{
 		return;
 	}
@@ -115,7 +180,7 @@ void URevolverCylinderComponent::ServerCycle_Implementation()
 void URevolverCylinderComponent::ServerCycleBack_Implementation()
 {
 	// Blocked during a reload, the same as Cycle, Spin, and Discard.
-	if (bIsReloading)
+	if (bIsReloading || bIsCocking)
 	{
 		return;
 	}
@@ -133,7 +198,7 @@ void URevolverCylinderComponent::ServerCycleBack_Implementation()
 
 void URevolverCylinderComponent::ServerSpin_Implementation()
 {
-	if (bIsReloading)
+	if (bIsReloading || bIsCocking)
 	{
 		return;
 	}
@@ -148,7 +213,7 @@ void URevolverCylinderComponent::ServerSpin_Implementation()
 
 void URevolverCylinderComponent::ServerDiscard_Implementation()
 {
-	if (bIsReloading)
+	if (bIsReloading || bIsCocking)
 	{
 		return;
 	}
@@ -163,7 +228,7 @@ void URevolverCylinderComponent::ServerDiscard_Implementation()
 void URevolverCylinderComponent::ServerReload_Implementation()
 {
 	// Ignore a request while a reload is already running, or if there are no chambers.
-	if (bIsReloading || Chambers.Num() == 0)
+	if (bIsReloading || bIsCocking || Chambers.Num() == 0)
 	{
 		return;
 	}
@@ -285,6 +350,11 @@ FString URevolverCylinderComponent::GetDebugString() const
 	if (bIsReloading)
 	{
 		Result += TEXT(" RELOADING");
+	}
+
+	if (bIsCocking)
+	{
+		Result += TEXT(" COCKING");
 	}
 
 	return Result;

@@ -6,6 +6,8 @@
 #include "Components/ActorComponent.h"
 #include "RevolverCylinderComponent.generated.h"
 
+class ARevolverProjectile;
+
 UENUM(BlueprintType)
 enum class EBulletType : uint8
 {
@@ -81,6 +83,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cylinder")
 	void Discard();
 
+	// The projectile class to spawn. TSubclassOf restricts the choice to ARevolverProjectile and its subclasses.
+	// A Blueprint subclass can be selected here later to change the projectile's look.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	TSubclassOf<ARevolverProjectile> ProjectileClass;
+
+	// Distance in centimeters in front of the player's eyes where the projectile appears.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
+	float MuzzleOffset = 100.0f;
+
 	UFUNCTION(BlueprintPure, Category = "Cylinder")
 	FString GetDebugString() const;
 
@@ -147,4 +158,6 @@ private:
 	void AdvanceReload();
 
 	void StopReload();
+
+	void SpawnProjectile(EBulletType BulletType);
 };

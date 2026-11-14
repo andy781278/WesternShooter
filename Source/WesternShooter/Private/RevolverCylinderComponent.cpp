@@ -3,6 +3,8 @@
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "RevolverProjectile.h"
+#include "GameFramework/Pawn.h"
 
 // Sets default values for this component's properties
 URevolverCylinderComponent::URevolverCylinderComponent() {
@@ -14,6 +16,8 @@ URevolverCylinderComponent::URevolverCylinderComponent() {
 	CockTimes.Add(EBulletType::BigPush, 0.6f);
 	CockTimes.Add(EBulletType::Bomb, 1.0f);
 	CockTimes.Add(EBulletType::Recursive, 0.5f);
+
+	ProjectileClass = ARevolverProjectile::StaticClass();
 }
 
 void URevolverCylinderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -145,7 +149,9 @@ void URevolverCylinderComponent::FireCurrentChamber()
 	{
 		Chambers[CurrentIndex] = EBulletType::Empty;
 
-		// NEW. GetNameSafe returns the owner's name. It shows which player's cylinder fired.
+		SpawnProjectile(FiredType);
+
+		// GetNameSafe returns the owner's name. It shows which player's cylinder fired.
 		UE_LOG(LogTemp, Log, TEXT("Server: %s fired bullet type %d"), *GetNameSafe(GetOwner()), static_cast<int32>(FiredType));
 	}
 	else
@@ -154,6 +160,41 @@ void URevolverCylinderComponent::FireCurrentChamber()
 	}
 
 	Advance();
+}
+
+void URevolverCylinderComponent::SpawnProjectile(EBulletType BulletType)
+{
+	// Cast returns the object as the requested type, or nullptr if it is not that type.
+	// The component's owner is the character, which is a Pawn.
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn || !ProjectileClass)
+	{
+		return;
+	}
+
+	// Fills in where the Pawn's eyes are and which way it is aiming.
+	// On the server, the aim comes from the player's controller, which receives it from that player's machine.
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	OwnerPawn->GetActorEyesViewPoint(ViewLocation, ViewRotation);
+
+	// ViewRotation.Vector() is a direction of length 1 pointing where the player aims.
+	// Starting in front of the player keeps the projectile from spawning inside the player's own body.
+	const FVector SpawnLocation = ViewLocation + ViewRotation.Vector() * MuzzleOffset;
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.Owner = OwnerPawn;
+	SpawnParameters.Instigator = OwnerPawn;
+
+	// Spawn even if the start point overlaps something. The default can refuse to spawn in that case.
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// SpawnActor creates the Actor in the world. This runs on the server, and replication creates the copies on clients.
+	ARevolverProjectile* Projectile = GetWorld()->SpawnActor<ARevolverProjectile>(ProjectileClass, SpawnLocation, ViewRotation, SpawnParameters);
+	if (Projectile)
+	{
+		Projectile->BulletType = BulletType;
+	}
 }
 
 float URevolverCylinderComponent::GetCockTime(EBulletType BulletType) const

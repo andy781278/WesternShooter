@@ -111,12 +111,16 @@ FReply UCylinderWheelWidget::NativeOnMouseMove(const FGeometry& InGeometry, cons
 
 FReply UCylinderWheelWidget::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-	if (!bGrabbed || InMouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+	if (InMouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
 	{
 		return FReply::Unhandled();
 	}
 
-	// The wheel keeps the speed measured during the drag and continues turning in NativeTick.
+	if (!bGrabbed)
+	{
+		return FReply::Handled().ReleaseMouseCapture();
+	}
+
 	bGrabbed = false;
 
 	return FReply::Handled().ReleaseMouseCapture();
@@ -131,6 +135,8 @@ void UCylinderWheelWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	{
 		return;
 	}
+
+	BindToCylinder(Cylinder);
 
 	const float Now = GetWorld()->GetTimeSeconds();
 
@@ -294,4 +300,36 @@ void UCylinderWheelWidget::UpdateBulletIcons()
 			Image->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
+}
+
+void UCylinderWheelWidget::BindToCylinder(URevolverCylinderComponent* Cylinder)
+{
+	if (BoundCylinder.Get() == Cylinder)
+	{
+		return;
+	}
+
+	if (URevolverCylinderComponent* OldCylinder = BoundCylinder.Get())
+	{
+		OldCylinder->OnLocalCockRequested.Remove(CockRequestedHandle);
+	}
+
+	BoundCylinder = Cylinder;
+	CockRequestedHandle.Reset();
+
+	if (Cylinder)
+	{
+		CockRequestedHandle = Cylinder->OnLocalCockRequested.AddUObject(this, &UCylinderWheelWidget::HandleCockRequested);
+	}
+}
+
+void UCylinderWheelWidget::HandleCockRequested()
+{
+	ForceSnap();
+}
+
+void UCylinderWheelWidget::NativeDestruct()
+{
+	BindToCylinder(nullptr);
+	Super::NativeDestruct();
 }

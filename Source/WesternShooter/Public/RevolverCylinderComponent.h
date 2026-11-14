@@ -8,6 +8,8 @@
 
 class ARevolverProjectile;
 
+DECLARE_MULTICAST_DELEGATE(FOnLocalCockRequested);
+
 UENUM(BlueprintType)
 enum class EBulletType : uint8
 {
@@ -36,6 +38,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
 	float ChamberAdvanceTime = 0.3f;
+
+	FOnLocalCockRequested OnLocalCockRequested;
 
 	UFUNCTION(BlueprintPure, Category = "Cylinder")
 	const TArray<EBulletType>& GetChambers() const { return Chambers; }

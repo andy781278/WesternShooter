@@ -108,6 +108,7 @@ protected:
 	TObjectPtr<UProgressBar> CockBar;
 
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 
 private:
 	// Degrees between neighboring chambers: 360 / 6 = 60.
@@ -152,4 +153,9 @@ private:
 	void FinishSpin();
 
 	void UpdateBulletIcons();
+
+	TWeakObjectPtr<URevolverCylinderComponent> BoundCylinder;
+	FDelegateHandle CockRequestedHandle;
+	void BindToCylinder(URevolverCylinderComponent* Cylinder);
+	void HandleCockRequested();
 };

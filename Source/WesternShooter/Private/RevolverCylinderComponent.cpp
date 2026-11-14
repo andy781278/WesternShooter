@@ -71,6 +71,7 @@ void URevolverCylinderComponent::CancelReload()
 
 void URevolverCylinderComponent::StartCock()
 {
+	OnLocalCockRequested.Broadcast();
 	ServerStartCock();
 }
 

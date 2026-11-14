@@ -30,6 +30,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
 	TArray<EBulletType> DefaultLoadout;
 
+	// Uses the current chamber, empties it, and advances to the next chamber.
+	// An empty chamber is a dry fire: nothing is used, and the cylinder still advances.
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void Fire();
+
+	// Advances to the next chamber without firing. The skipped bullet stays in its chamber.
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void Cycle();
+
+	// Jumps to a random chamber.
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void Spin();
+
+	// Empties the current chamber. Does not advance.
+	UFUNCTION(BlueprintCallable, Category = "Cylinder")
+	void Discard();
+
 	UFUNCTION(BlueprintPure, Category = "Cylinder")
 	FString GetDebugString() const;
 
@@ -43,6 +60,7 @@ protected:
 	UPROPERTY()
 	int32 CurrentIndex = 0;
 
-public:	
-		
+public:
+	// Moves CurrentIndex forward by one and wraps from the last chamber back to the first.
+	void Advance();
 };

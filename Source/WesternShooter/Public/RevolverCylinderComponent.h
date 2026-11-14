@@ -25,6 +25,8 @@ public:
 	// Sets default values for this component's properties
 	URevolverCylinderComponent();
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	static constexpr int32 ChamberCount = 6;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cylinder")
@@ -54,13 +56,25 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	UPROPERTY()
+	UPROPERTY(Replicated)
 	TArray<EBulletType> Chambers;
 
-	UPROPERTY()
+	UPROPERTY(Replicated)
 	int32 CurrentIndex = 0;
 
-public:
+	UFUNCTION(Server, Reliable)
+	void ServerFire();
+
+	UFUNCTION(Server, Reliable)
+	void ServerCycle();
+
+	UFUNCTION(Server, Reliable)
+	void ServerSpin();
+
+	UFUNCTION(Server, Reliable)
+	void ServerDiscard();
+
+private:
 	// Moves CurrentIndex forward by one and wraps from the last chamber back to the first.
 	void Advance();
 };

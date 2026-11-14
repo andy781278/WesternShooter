@@ -1,11 +1,22 @@
 #include "RevolverCylinderComponent.h"
+#include "Net/UnrealNetwork.h"
+#include "GameFramework/Actor.h"
 
 // Sets default values for this component's properties
 URevolverCylinderComponent::URevolverCylinderComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
+	SetIsReplicatedByDefault(true);
+
 	DefaultLoadout.Init(EBulletType::Standard, ChamberCount);
+}
+
+void URevolverCylinderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME_CONDITION(URevolverCylinderComponent, Chambers, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(URevolverCylinderComponent, CurrentIndex, COND_OwnerOnly);
 }
 
 // Called when the game starts
@@ -13,15 +24,39 @@ void URevolverCylinderComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	Chambers = DefaultLoadout;
-	
-	Chambers.SetNum(ChamberCount);
+	if (GetOwner() && GetOwner()->HasAuthority()) {
+		Chambers = DefaultLoadout;
 
-	CurrentIndex = 0;
+		Chambers.SetNum(ChamberCount);
+
+		CurrentIndex = 0;
+	}
 }
 
-void URevolverCylinderComponent::Fire() {
-	if (!Chambers.IsValidIndex(CurrentIndex)) {
+void URevolverCylinderComponent::Fire()
+{
+	ServerFire();
+}
+
+void URevolverCylinderComponent::Cycle()
+{
+	ServerCycle();
+}
+
+void URevolverCylinderComponent::Spin()
+{
+	ServerSpin();
+}
+
+void URevolverCylinderComponent::Discard()
+{
+	ServerDiscard();
+}
+
+void URevolverCylinderComponent::ServerFire_Implementation()
+{
+	if (!Chambers.IsValidIndex(CurrentIndex))
+	{
 		return;
 	}
 
@@ -29,52 +64,52 @@ void URevolverCylinderComponent::Fire() {
 
 	if (FiredType != EBulletType::Empty)
 	{
-		// The bullet is used up.
 		Chambers[CurrentIndex] = EBulletType::Empty;
 
-		// UE_LOG writes a line to the Output Log window (Window > Output Log in the editor).
-		// LogTemp is a general-purpose log category. Log is the severity level.
-		// %d prints an integer. The enum is cast to int32 because %d cannot print an enum class directly.
-		UE_LOG(LogTemp, Log, TEXT("Fired bullet type %d"), static_cast<int32>(FiredType));
+		// NEW. GetNameSafe returns the owner's name. It shows which player's cylinder fired.
+		UE_LOG(LogTemp, Log, TEXT("Server: %s fired bullet type %d"), *GetNameSafe(GetOwner()), static_cast<int32>(FiredType));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Log, TEXT("Dry fire: chamber was empty"));
+		UE_LOG(LogTemp, Log, TEXT("Server: %s dry fired"), *GetNameSafe(GetOwner()));
 	}
 
 	Advance();
 }
 
-void URevolverCylinderComponent::Cycle() {
+void URevolverCylinderComponent::ServerCycle_Implementation()
+{
 	Advance();
 }
 
-void URevolverCylinderComponent::Spin() {
+void URevolverCylinderComponent::ServerSpin_Implementation()
+{
 	if (Chambers.Num() == 0)
 	{
 		return;
 	}
 
-	// FMath::RandRange(Min, Max) returns a random integer. Both ends are included.
+	// NEW. The server picks the random number, so a client cannot choose the result.
 	CurrentIndex = FMath::RandRange(0, Chambers.Num() - 1);
 }
 
-void URevolverCylinderComponent::Discard() {
-	if (!Chambers.IsValidIndex(CurrentIndex)) {
+void URevolverCylinderComponent::ServerDiscard_Implementation()
+{
+	if (!Chambers.IsValidIndex(CurrentIndex))
+	{
 		return;
 	}
 
 	Chambers[CurrentIndex] = EBulletType::Empty;
 }
 
-void URevolverCylinderComponent::Advance() {
-	// Guard against dividing by zero in the modulo below.
+void URevolverCylinderComponent::Advance()
+{
 	if (Chambers.Num() == 0)
 	{
 		return;
 	}
 
-	// Modulo wraps the index: with 6 chambers, index 5 advances to (5 + 1) % 6 = 0.
 	CurrentIndex = (CurrentIndex + 1) % Chambers.Num();
 }
 

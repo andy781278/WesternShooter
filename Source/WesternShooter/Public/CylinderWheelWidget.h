@@ -64,6 +64,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Wheel")
 	URevolverCylinderComponent* GetCylinder() const;
 
+	UFUNCTION(BlueprintCallable, Category = "Wheel")
+	void OpenWheel();
+
+	UFUNCTION(BlueprintCallable, Category = "Wheel")
+	void CloseWheel();
+
+	UFUNCTION(BlueprintPure, Category = "Wheel")
+	bool IsWheelOpen() const { return bWheelOpen; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wheel")
+	float ClosedAlignmentY = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wheel")
+	float OpenAlignmentY = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wheel")
+	float SlideInterpSpeed = 12.0f;
+
 protected:
 	// BindWidget connects this variable to a widget in the Widget Blueprint that has the same name.
 	// The Blueprint must contain a widget named WheelRoot, or it will not compile.
@@ -158,4 +176,7 @@ private:
 	FDelegateHandle CockRequestedHandle;
 	void BindToCylinder(URevolverCylinderComponent* Cylinder);
 	void HandleCockRequested();
+
+	bool bWheelOpen = false;
+	float CurrentAlignmentY = 0.5f;
 };

@@ -5,6 +5,7 @@
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
 #include "Engine/Texture2D.h"
+#include "GameFramework/PlayerController.h"
 
 URevolverCylinderComponent* UCylinderWheelWidget::GetCylinder() const
 {
@@ -62,6 +63,7 @@ FReply UCylinderWheelWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry
 
 	// The wheel cannot be grabbed during a reload or while cocking. The server would reject the spin.
 	if (!Cylinder
+		|| !bWheelOpen
 		|| InMouseEvent.GetEffectingButton() != EKeys::LeftMouseButton
 		|| Cylinder->IsReloading()
 		|| Cylinder->IsCocking())
@@ -129,6 +131,16 @@ FReply UCylinderWheelWidget::NativeOnMouseButtonUp(const FGeometry& InGeometry, 
 void UCylinderWheelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// Moves the wheel between its closed and open positions.
+	const float TargetAlignmentY = bWheelOpen ? OpenAlignmentY : ClosedAlignmentY;
+	if (!FMath::IsNearlyEqual(CurrentAlignmentY, TargetAlignmentY, 0.0001f))
+	{
+		CurrentAlignmentY = FMath::FInterpTo(CurrentAlignmentY, TargetAlignmentY, InDeltaTime, SlideInterpSpeed);
+
+		// Changes which point of the widget sits on its anchor. The anchor stays at the bottom center of the screen.
+		SetAlignmentInViewport(FVector2D(0.5f, CurrentAlignmentY));
+	}
 
 	URevolverCylinderComponent* Cylinder = GetCylinder();
 	if (!Cylinder || !GetWorld() || InDeltaTime <= 0.0f)
@@ -332,4 +344,65 @@ void UCylinderWheelWidget::NativeDestruct()
 {
 	BindToCylinder(nullptr);
 	Super::NativeDestruct();
+}
+
+void UCylinderWheelWidget::OpenWheel()
+{
+	if (bWheelOpen)
+	{
+		return;
+	}
+
+	// The wheel cannot open while the hammer is being pulled back.
+	const URevolverCylinderComponent* Cylinder = GetCylinder();
+	if (Cylinder && Cylinder->IsCocking())
+	{
+		return;
+	}
+
+	// GetOwningPlayer returns the PlayerController this widget was created for.
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	bWheelOpen = true;
+
+	// Game and UI mode: mouse clicks can reach widgets, and keyboard input still reaches the game, so walking works.
+	FInputModeGameAndUI InputMode;
+
+	// Keeps the cursor visible while a mouse button is held, which is when the wheel is dragged.
+	InputMode.SetHideCursorDuringCapture(false);
+
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->SetShowMouseCursor(true);
+
+	// Mouse movement no longer turns the camera. This is a counter in the engine:
+	// each true must be matched by one false, which bWheelOpen guarantees.
+	PlayerController->SetIgnoreLookInput(true);
+}
+
+void UCylinderWheelWidget::CloseWheel()
+{
+	if (!bWheelOpen)
+	{
+		return;
+	}
+
+	bWheelOpen = false;
+
+	// If the wheel was being dragged, let go of it. It keeps the speed it had and spins freely.
+	bGrabbed = false;
+
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	// Game only mode: the viewport takes the mouse back, which also ends this widget's mouse capture.
+	PlayerController->SetInputMode(FInputModeGameOnly());
+	PlayerController->SetShowMouseCursor(false);
+	PlayerController->SetIgnoreLookInput(false);
 }

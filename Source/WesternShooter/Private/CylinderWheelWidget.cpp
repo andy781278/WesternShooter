@@ -339,6 +339,13 @@ void UCylinderWheelWidget::BindToCylinder(URevolverCylinderComponent* Cylinder)
 	BoundCylinder = Cylinder;
 	CockRequestedHandle.Reset();
 
+	bLocalSpinActive = false;
+	bSnapping = false;
+	bGrabbed = false;
+	AngularVelocity = 0.0f;
+	PendingIndex = INDEX_NONE;
+	CachedChambers.Reset();
+
 	if (Cylinder)
 	{
 		CockRequestedHandle = Cylinder->OnLocalCockRequested.AddUObject(this, &UCylinderWheelWidget::HandleCockRequested);

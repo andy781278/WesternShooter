@@ -11,6 +11,7 @@
 #include "WesternShooter.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "WesternShooterGameMode.h"
 
 AWesternShooterCharacter::AWesternShooterCharacter()
 {
@@ -144,6 +145,11 @@ void AWesternShooterCharacter::Die()
 
 	bIsDead = true;
 	HandleDeath();
+
+	if (AWesternShooterGameMode* GameMode = GetWorld()->GetAuthGameMode<AWesternShooterGameMode>())
+	{
+		GameMode->OnPlayerDied(GetController());
+	}
 }
 
 void AWesternShooterCharacter::OnRep_IsDead()

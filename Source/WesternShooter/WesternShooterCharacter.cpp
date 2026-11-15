@@ -9,6 +9,8 @@
 #include "InputActionValue.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "WesternShooter.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Net/UnrealNetwork.h"
 
 AWesternShooterCharacter::AWesternShooterCharacter()
 {
@@ -42,6 +44,15 @@ AWesternShooterCharacter::AWesternShooterCharacter()
 	// Configure character movement
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 	GetCharacterMovement()->AirControl = 0.5f;
+
+	DeathSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("Death Spring Arm"));
+	DeathSpringArm->SetupAttachment(GetMesh(), FName("pelvis"));
+	DeathSpringArm->TargetArmLength = 300.0f;
+	DeathSpringArm->bUsePawnControlRotation = true;
+
+	DeathCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Death Camera"));
+	DeathCamera->SetupAttachment(DeathSpringArm);
+	DeathCamera->bAutoActivate = false;
 }
 
 void AWesternShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -66,6 +77,11 @@ void AWesternShooterCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 }
 
+void AWesternShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AWesternShooterCharacter, bIsDead);
+}
 
 void AWesternShooterCharacter::MoveInput(const FInputActionValue& Value)
 {
@@ -117,4 +133,46 @@ void AWesternShooterCharacter::DoJumpEnd()
 {
 	// pass StopJumping to the character
 	StopJumping();
+}
+
+void AWesternShooterCharacter::Die()
+{
+	if (!HasAuthority() || bIsDead)
+	{
+		return;
+	}
+
+	bIsDead = true;
+	HandleDeath();
+}
+
+void AWesternShooterCharacter::OnRep_IsDead()
+{
+	if (bIsDead)
+	{
+		HandleDeath();
+	}
+}
+
+void AWesternShooterCharacter::HandleDeath() {
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	USkeletalMeshComponent* Body = GetMesh();
+	Body->SetCollisionProfileName(TEXT("Ragdoll"));
+	Body->SetSimulatePhysics(true);
+
+	if (IsLocallyControlled())
+	{
+		// A character's view comes from its first active camera component.
+		FirstPersonCameraComponent->SetActive(false);
+		DeathCamera->SetActive(true);
+
+		Body->SetOwnerNoSee(false);
+		Body->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::None;
+		Body->MarkRenderStateDirty();
+
+		FirstPersonMesh->SetVisibility(false);
+	}
 }

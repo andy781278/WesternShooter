@@ -6,6 +6,7 @@
 #include "Components/ProgressBar.h"
 #include "Engine/Texture2D.h"
 #include "GameFramework/PlayerController.h"
+#include "WesternShooterCharacter.h"
 
 URevolverCylinderComponent* UCylinderWheelWidget::GetCylinder() const
 {
@@ -140,6 +141,15 @@ void UCylinderWheelWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 
 		// Changes which point of the widget sits on its anchor. The anchor stays at the bottom center of the screen.
 		SetAlignmentInViewport(FVector2D(0.5f, CurrentAlignmentY));
+	}
+
+	if (bWheelOpen)
+	{
+		const AWesternShooterCharacter* Character = Cast<AWesternShooterCharacter>(GetOwningPlayerPawn());
+		if (Character && Character->IsDead())
+		{
+			CloseWheel();
+		}
 	}
 
 	URevolverCylinderComponent* Cylinder = GetCylinder();

@@ -4,6 +4,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "UObject/ConstructorHelpers.h"
+#include "WesternShooterCharacter.h"
 
 ARevolverProjectile::ARevolverProjectile()
 {
@@ -83,6 +84,12 @@ void ARevolverProjectile::BeginPlay()
 void ARevolverProjectile::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
 {
 	UE_LOG(LogTemp, Log, TEXT("Server: projectile of type %d hit %s"), static_cast<int32>(BulletType), *GetNameSafe(OtherActor));
+
+	AWesternShooterCharacter* HitCharacter = Cast<AWesternShooterCharacter>(OtherActor);
+	if (HitCharacter)
+	{
+		HitCharacter->Die();
+	}
 
 	// Destroying a replicated Actor on the server also removes it on every client.
 	Destroy();

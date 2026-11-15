@@ -10,6 +10,7 @@
 class UInputComponent;
 class USkeletalMeshComponent;
 class UCameraComponent;
+class USpringArmComponent;
 class UInputAction;
 struct FInputActionValue;
 
@@ -31,6 +32,12 @@ class AWesternShooterCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FirstPersonCameraComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* DeathSpringArm;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UCameraComponent* DeathCamera;
+
 protected:
 
 	/** Jump Input Action */
@@ -51,6 +58,8 @@ protected:
 	
 public:
 	AWesternShooterCharacter();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 
@@ -76,13 +85,25 @@ protected:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
-protected:
-
 	/** Set up input action bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
 	
+	UPROPERTY(ReplicatedUsing = OnRep_IsDead)
+	bool bIsDead = false;
+
+	UFUNCTION()
+	void OnRep_IsDead();
+
+	UFUNCTION()
+	void HandleDeath();
 
 public:
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void Die();
+
+	UFUNCTION(BlueprintPure, Category = "Death")
+	bool IsDead() const { return bIsDead; }
 
 	/** Returns the first person mesh **/
 	USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }

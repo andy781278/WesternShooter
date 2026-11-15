@@ -74,13 +74,13 @@ public:
 	bool IsWheelOpen() const { return bWheelOpen; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wheel")
-	float ClosedAlignmentY = 0.2f;
+	float ClosedAlignmentY = 0.3f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wheel")
 	float OpenAlignmentY = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wheel")
-	float SlideInterpSpeed = 12.0f;
+	float SlideInterpSpeed = 24.0f;
 
 protected:
 	// BindWidget connects this variable to a widget in the Widget Blueprint that has the same name.

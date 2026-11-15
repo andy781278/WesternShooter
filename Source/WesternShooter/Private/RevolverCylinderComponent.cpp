@@ -5,6 +5,7 @@
 #include "TimerManager.h"
 #include "RevolverProjectile.h"
 #include "GameFramework/Pawn.h"
+#include "WesternShooterCharacter.h"
 
 // Sets default values for this component's properties
 URevolverCylinderComponent::URevolverCylinderComponent() {
@@ -84,6 +85,11 @@ void URevolverCylinderComponent::ServerStartCock_Implementation()
 {
 	if (bIsCocking || bIsSpinning || !Chambers.IsValidIndex(CurrentIndex))
 	{
+		return;
+	}
+
+	AWesternShooterCharacter* chara = Cast<AWesternShooterCharacter>(GetOwner());
+	if (chara && chara->IsDead()) {
 		return;
 	}
 
